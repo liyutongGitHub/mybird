@@ -1,0 +1,231 @@
+<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.0//EN" "http://www.wapforum.org/DTD/xhtml-mobile10.dtd">
+<html>
+
+<head>
+    <title>myLock-beta</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0" />
+    <link rel="stylesheet" href="css/reset.css">
+</head>
+
+<body>
+</body>
+<script src="JS/jquery-1.8.3.min.js"></script>
+<script>
+window.myGame = function() {
+    this._gameTyle = 'down';
+    this._p = [];
+    this.numbers = 0;
+    this.obj = [];
+    this.alldisplay = [];
+    this.dismiss=0;
+    this.score=0;
+    this.rest=0;
+    this.tempObj={};
+}
+myGame.prototype.getCenter = function(touch) { //获取circle的中心点坐标
+    var X = touch.pageX;
+    var Y = touch.pageY;
+    var nowAdays = document.elementFromPoint(X, Y);
+    var key = $('.svg rect').index($(nowAdays));
+    if (nowAdays.nodeName == 'rect') {
+        return [key % 10, Math.floor(key / 10)];
+    } else {
+        return false
+    }
+}
+myGame.prototype.creatP = function() {
+    for(var i=0;i<10;i++){
+        this._p[i]=[];
+        for(var j=0;j<10;j++){
+            this._p[i][j]=randomNum(Math.floor(Math.random()*5));
+        }
+    }
+    function randomNum(num){
+        switch(num){
+        case 0:return 'red';
+        case 1:return 'blue';
+        case 2:return 'green';
+        case 3:return 'yellow';
+        case 4:return 'purple';
+        }
+    }
+    this.panintP();
+}
+myGame.prototype.panintP = function() {
+    var $div = $(`
+        <div style="width:100%;" id="mydiv">
+            <svg  style="width:100%;" class="svg" viewBox="0 0 0 0" />
+            <p>最高分:${localStorage.mosthigh}分</p>
+            <p>当前分数:${this.score}分</p>
+        </div>
+        `);
+    $('body').append($div);
+    var winWidth = $("html").width();
+    this.numbers = winWidth;
+    $(".svg").height(winWidth);
+    var winHeight = $("html").height();
+    this.repaintP(winWidth);
+    this.bindEvens();
+    this.settings(winWidth);
+}
+myGame.prototype.repaintP = function(winWidth) {
+    var str = '';
+    for (var flag = 0, i = 20; flag < 10; flag++) {
+        for (var num = 0, j = 20; num < 10; num++) {
+            if (this._p[num][flag]) {
+                str = str.concat(`<rect width="${winWidth / 11}" height="${winWidth / 11}"
+                             style="fill:${this._p[num][flag]};stroke-width:1;stroke:rgb(0,0,0)"
+                                x="${i}" y="${j}" rx='5' ry='5' />`);
+            } else {
+                str = str.concat(`<rect width="${winWidth / 11}" height="${winWidth / 11}"
+                             style="fill:${this._p[num][flag]};display:none"
+                                x="${i}" y="${j}" rx='5' ry='5' />`);
+            }
+            j += winWidth / 11;
+        }
+        i += winWidth / 11;
+    }
+    $(".svg").html(str);
+
+}
+myGame.prototype.settings = function(winWidth) { //界面元素的一些设置
+    document.getElementsByClassName('svg')[0].setAttribute('viewBox', `0 0 ${winWidth} ${winWidth}`);
+        $('p:eq(1)').css('top', $('svg').height() + 25 + 'px');
+        $('p:eq(0)').css('top', $('svg').height() + 70 + 'px');
+}
+myGame.prototype.init = function() {
+    this.creatP();
+}
+myGame.prototype.createText = function(str,time) { //创建文字区域
+    var $p = `<strong class=${parseInt(str)}>${str}</strong>`;
+    $('#mydiv strong').remove();
+    $('#mydiv').append($p);
+    setTimeout(function() {
+        $('.' + parseInt(str)).remove();
+    }, time);
+}
+myGame.prototype.bindEvens = function() {
+    var _this = this;
+    $('.svg').on('touchstart', function(event) {
+        var e = e || event;
+        _this.obj = [];
+        _this.alldisplay = [];
+        if (e.originalEvent.targetTouches[1]) {} else {
+            var touch = e.originalEvent.targetTouches[0];
+            var target = _this.getCenter(touch);
+            if (target) {
+                _this.display(_this._p[target[0]][target[1]], target[0], target[1]);
+                _this.handleP();
+            }
+        }
+    })
+}
+myGame.prototype.display = function(str, i, j) {
+    if (this._p[i]) {
+        if (this._p[i][j]) {
+            if (this._p[i][j] == str) {
+                this._p[i][j] = 0;
+
+                this.obj.push({
+                    i: i,
+                    j: j,
+                    str:str
+                });
+                this.display(str, i + 1, j);
+                this.display(str, i, j + 1);
+                this.display(str, i - 1, j);
+                this.display(str, i, j - 1);
+            }
+        }
+    }
+}
+myGame.prototype.gameover=function(){
+    for(var i=0;i<10;i++){
+        for(var j=0;j<10;j++){
+            if(this._p[i][j]){
+                if(this._p[i][j+1]){if(this._p[i][j]==this._p[i][j+1]){return false;}}
+                if(this._p[i][j-1]){if(this._p[i][j]==this._p[i][j-1]){return false;}}
+                if(this._p[i+1]){if(this._p[i][j]==this._p[i+1][j]){return false;}}
+                if(this._p[i-1]){if(this._p[i][j]==this._p[i-1][j]){return false;}}
+            }
+        }
+    }
+    return true;
+}
+myGame.prototype.handleP = function() {
+    if(this.obj.length==1){
+        this._p[this.obj[0].i][this.obj[0].j]=this.obj[0].str;
+        this.obj=[];
+    }else{
+    this.obj.sort(function(a, b) {
+        return a.i - b.i;
+    });
+    for (var n = 0; n < this.obj.length; n++) {
+        for (var number = this.obj[n].i; number >= 0; number--) {
+            if (number == 0) {} else {
+                if (this._p[number - 1][this.obj[n].j]) {
+                    this._p[number][this.obj[n].j] = this._p[number - 1][this.obj[n].j];
+                    this._p[number - 1][this.obj[n].j] = 0;
+                }
+            }
+        }
+    }
+    for (var n = 0; n < 10-this.dismiss; n++) {
+    if (this._p[9][n] == 0) {
+            this.alldisplay.push(n);    
+        }
+    }
+    this.alldisplay.sort(function(a, b) {
+        return b - a;
+    });
+    for (var j = 0; j < this.alldisplay.length; j++) {
+        for (n = this.alldisplay[j]; n < 10; n++) {
+            for (var m = 0; m < 10; m++) {
+                this._p[m][n] = this._p[m][n + 1];
+                this._p[m][n + 1] = 0;
+            }
+        }
+            this.dismiss++;    
+    }
+    this.createText(this.calcu(this.obj.length),1000);
+    this.repaintP(this.numbers);
+    this.rest+=this.obj.length;
+    if(this.gameover()){
+        if(localStorage.mosthigh){
+            if(localStorage.mosthigh>=this.score){
+                this.createText('真可惜，差一点就破纪录了',5000);
+            }else{
+                localStorage.mosthigh=this.score;
+                this.createText('游戏结束，新纪录！',5000);
+            }
+        }else{localStorage.mosthigh=this.score;this.createText('游戏技术，新纪录！',5000);}
+    }
+    // for (var i = 0; i <= 9; i++) {
+    //     console.log(this._p[i][0] + ' ' + this._p[i][1] + ' ' + this._p[i][2] + ' ' + this._p[i][3] + ' ' + this._p[i][4] + ' ' + this._p[i][5] + ' ' +
+    //         this._p[i][6] + ' ' + this._p[i][7] + ' ' + this._p[i][8] + ' ' + this._p[i][9])
+    // }
+    }
+}
+myGame.prototype.calcu=function(length){
+    var num=Math.pow(length,3)*2+10;
+    this.score+=num;
+    $('p:eq(1)').html('当前分数:'+this.score+'分');
+    if(num>=400){return '+'+num+'!!!'}
+        else{
+    return '+'+num;}
+}
+var myGame1 = new myGame();
+myGame1.init();
+
+// var arrr = [
+//     [0, 1],
+//     [0, 2]
+// ];
+
+// console.log(arrr.filter(function(num){
+//     return num[0]==0;
+// }));
+</script>
+
+</html>
