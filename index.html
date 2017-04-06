@@ -12,125 +12,210 @@
 </body>
 <script src="JS/jquery-1.8.3.min.js"></script>
 <script>
-window.myGame = function() {
-    this._gameTyle = 'down';
-    this._p = [];
+$(function() {
+    window.myGame = function() {
+    this._p = []; //矩阵
     this.numbers = 0;
-    this.obj = [];
-    this.alldisplay = [];
-    this.dismiss=0;
-    this.score=0;
-    this.rest=0;
-    this.tempObj={};
+    this.obj = []; //本次点击被消除的点
+    this.alldisplay = []; //储存空列的列号
+    this.dismiss = 0; //已经空了的列数
+    this.score = 0; //本局分数
+    this.edition = '1.0.1';//版本号
 }
-myGame.prototype.getCenter = function(touch) { //获取circle的中心点坐标
-    var X = touch.pageX;
-    var Y = touch.pageY;
-    var nowAdays = document.elementFromPoint(X, Y);
-    var key = $('.svg rect').index($(nowAdays));
-    if (nowAdays.nodeName == 'rect') {
-        return [key % 10, Math.floor(key / 10)];
-    } else {
-        return false
-    }
+myGame.prototype.init = function() {
+    this.creatP(); //随机出一个P矩阵
+    this.panintP();
+    this.repaintP(this.numbers); //绘制出一个P矩阵
+    this.bindEvens(); //绑定事件
+    this.setting();
+    this.checkEdition();
+}
+myGame.prototype.checkEdition=function(){
+    if(localStorage.edition==this.edition){}
+        else{
+            localStorage.edition=this.edition;
+            this.createText('版本更新，分数清零');
+            $('p:eq(0)').html('最高分数:' + 0 + '分');
+            localStorage.mosthigh=0;
+        }
+}
+myGame.prototype.setting = function() {
+    setInterval(function() {
+        var winWidth = $(window).width();
+        var winHeight = $(window).height();
+        if (winWidth < winHeight) { //屏幕宽高来设置SVG的宽高以及方向
+            this.numbers = winWidth;
+            $(".svg").height(winWidth);
+            console.log('winWidth')
+        } else {
+            this.numbers = winHeight;
+            $(".svg").width(winHeight);
+            $(".svg").height(winHeight-20);
+            console.log('winHeight')
+        }
+    },2000)
+
+
 }
 myGame.prototype.creatP = function() {
-    for(var i=0;i<10;i++){
-        this._p[i]=[];
-        for(var j=0;j<10;j++){
-            this._p[i][j]=randomNum(Math.floor(Math.random()*5));
+    for (var i = 0; i < 10; i++) {
+        this._p[i] = [];
+        for (var j = 0; j < 10; j++) {
+            this._p[i][j] = {
+                color: randomNum(Math.floor(Math.random() * 5)),
+                move: false,
+                moveX: 0, //该方块移动了几格
+                moveY: 0
+            };
         }
     }
-    function randomNum(num){
-        switch(num){
-        case 0:return 'red';
-        case 1:return 'blue';
-        case 2:return 'green';
-        case 3:return 'yellow';
-        case 4:return 'purple';
+
+    function randomNum(num) {
+        switch (num) {
+            case 0:
+                return '#F33F3F';
+            case 1:
+                return '#156FE5';
+            case 2:
+                return '#0BEA21';
+            case 3:
+                return '#EED511';
+            case 4:
+                return '#D747D2';
         }
     }
-    this.panintP();
 }
 myGame.prototype.panintP = function() {
     var $div = $(`
         <div style="width:100%;" id="mydiv">
-            <svg  style="width:100%;" class="svg" viewBox="0 0 0 0" />
-            <p>最高分:${localStorage.mosthigh}分</p>
-            <p>当前分数:${this.score}分</p>
+            <svg class="svg" viewBox="0 0 0 0" />
+            <section>
+                <strong id="addScore">新游戏</strong>
+                <p>最高分数:${localStorage.mosthigh}分</p>
+                <p>当前分数:${this.score}分</p>
+                <button>重新开始</button>
+            </section>
         </div>
         `);
     $('body').append($div);
-    var winWidth = $("html").width();
-    this.numbers = winWidth;
-    $(".svg").height(winWidth);
-    var winHeight = $("html").height();
-    this.repaintP(winWidth);
-    this.bindEvens();
-    this.settings(winWidth);
+    var winWidth = $(window).width();
+    var winHeight = $(window).height();
+    if (winWidth < winHeight) { //屏幕宽高来设置SVG的宽高以及方向
+        this.numbers = winWidth;
+        $(".svg").height(winWidth);
+    } else {
+        this.numbers = winHeight;
+        $(".svg").width(winHeight);
+    }
+    document.getElementsByClassName('svg')[0].setAttribute('viewBox', `0 0 ${this.numbers} ${this.numbers}`);
 }
 myGame.prototype.repaintP = function(winWidth) {
     var str = '';
+    var _this = this;
     for (var flag = 0, i = 20; flag < 10; flag++) {
         for (var num = 0, j = 20; num < 10; num++) {
-            if (this._p[num][flag]) {
-                str = str.concat(`<rect width="${winWidth / 11}" height="${winWidth / 11}"
-                             style="fill:${this._p[num][flag]};stroke-width:1;stroke:rgb(0,0,0)"
-                                x="${i}" y="${j}" rx='5' ry='5' />`);
-            } else {
-                str = str.concat(`<rect width="${winWidth / 11}" height="${winWidth / 11}"
-                             style="fill:${this._p[num][flag]};display:none"
-                                x="${i}" y="${j}" rx='5' ry='5' />`);
+            if (this._p[num][flag].color) {
+                if (this._p[num][flag].move) { //当单元格需要move时，先绘制在起点，再加动画timeout(num, flag);
+                    var backx = (num - parseInt(this._p[num][flag].moveX)) * this.numbers / 11 + 20; //移动起点
+                    var backy = (flag + parseInt(this._p[num][flag].moveY)) * this.numbers / 11 + 20;
+                    str = str.concat(`<rect width="${winWidth / 11}" height="${winWidth / 11}" class='R${num+''+flag}'
+                             style="fill:${this._p[num][flag].color};"
+                                x="${backy}" y="${backx}"/>`);
+                    timeout(num, flag);
+                } else { //普通绘制单元格
+                    str = str.concat(`<rect width="${winWidth / 11}" height="${winWidth / 11}" class='R${num+''+flag}'
+                             style="fill:${this._p[num][flag].color}" x="${i}" y="${j}" />`);
+                }
+            } else { //已经消除的单元格this._p[num][flag].color==0
+                str = str.concat(`<rect width="${winWidth / 11}" height="${winWidth / 11}" class='R${num+''+flag}'
+                             style="fill:${this._p[num][flag].color};display:none"
+                                x="${i}" y="${j}"/>`);
             }
             j += winWidth / 11;
         }
         i += winWidth / 11;
     }
-    $(".svg").html(str);
 
+    function timeout(a, b) {
+        setTimeout(function() {
+            _this.toPosition('R' + a + b, a, b)
+        }, 0)
+    }
+    $(".svg").html(str);
+    $('.svg rect').attr('stroke-width', '1').attr('rx', '4').attr('ry', '4').attr('stroke', 'black');
 }
-myGame.prototype.settings = function(winWidth) { //界面元素的一些设置
-    document.getElementsByClassName('svg')[0].setAttribute('viewBox', `0 0 ${winWidth} ${winWidth}`);
-        $('p:eq(1)').css('top', $('svg').height() + 25 + 'px');
-        $('p:eq(0)').css('top', $('svg').height() + 70 + 'px');
+myGame.prototype.toPosition = function(nowAdays, x, y) { //给单元格加动画
+    this._p[x][y].move = false;
+    this._p[x][y].moveX = 0;
+    this._p[x][y].moveY = 0;
+    var X = parseInt(x) * this.numbers / 11 + 20; //移动终点
+    var Y = parseInt(y) * this.numbers / 11 + 20;
+    var backx = parseInt($('.' + nowAdays).attr('x')); //移动起点
+    var backy = parseInt($('.' + nowAdays).attr('y'));
+    $('.' + nowAdays).animate({
+        "y": X + "px",
+        "x": Y + "px"
+    }, 400);
 }
-myGame.prototype.init = function() {
+myGame.prototype.createText = function(str, time) { //创建文字区域
+    $('#addScore').html(str);
+}
+myGame.prototype.restart = function() { //点击重新开始按钮
     this.creatP();
+    this.repaintP(this.numbers);
+    this.reset();
+    this.removeEvents();
+    this.bindEvens();
+    this.dismiss = 0; //已经空了的列数
+    this.score = 0; //本局分数
+    this.createText('重新开始！', 1000);
+    $('p:eq(0)').html('最高分数:' + localStorage.mosthigh + '分');
+    $('p:eq(1)').html('当前分数:' + this.score + '分');
 }
-myGame.prototype.createText = function(str,time) { //创建文字区域
-    var $p = `<strong class=${parseInt(str)}>${str}</strong>`;
-    $('#mydiv strong').remove();
-    $('#mydiv').append($p);
-    setTimeout(function() {
-        $('.' + parseInt(str)).remove();
-    }, time);
+myGame.prototype.reset = function() {
+    this.obj = [];
+    this.alldisplay = [];
+}
+myGame.prototype.removeEvents = function() {
+    this.obj = [];
+    this.alldisplay = [];
+    $('button').off('touchstart');
 }
 myGame.prototype.bindEvens = function() {
     var _this = this;
+    $('button').on('touchstart', function() {
+        _this.restart();
+        $('button').css('background-color', '#7FD7FC');
+        setTimeout(function() {
+            $('button').css('background-color', 'white');
+        }, 200);
+    })
     $('.svg').on('touchstart', function(event) {
+        _this.reset();
         var e = e || event;
-        _this.obj = [];
-        _this.alldisplay = [];
         if (e.originalEvent.targetTouches[1]) {} else {
             var touch = e.originalEvent.targetTouches[0];
             var target = _this.getCenter(touch);
             if (target) {
-                _this.display(_this._p[target[0]][target[1]], target[0], target[1]);
-                _this.handleP();
+                _this.display(_this._p[target[0]][target[1]].color, target[0], target[1]); //递归四周
+                _this.handleP(); //矩阵处理
+                _this.repaintP(_this.numbers); //重画矩阵
+                _this.touchending(); //判定结束
             }
         }
     })
 }
-myGame.prototype.display = function(str, i, j) {
+myGame.prototype.display = function(str, i, j) { //点击的对象递归四周
     if (this._p[i]) {
         if (this._p[i][j]) {
-            if (this._p[i][j] == str) {
-                this._p[i][j] = 0;
-
+            if (this._p[i][j].color == str) {
+                this._p[i][j].color = 0;
+                this._p[i][j].move = true;
+                this._p[i][j].lastcolor = str;
                 this.obj.push({
                     i: i,
                     j: j,
-                    str:str
+                    str: str
                 });
                 this.display(str, i + 1, j);
                 this.display(str, i, j + 1);
@@ -140,92 +225,342 @@ myGame.prototype.display = function(str, i, j) {
         }
     }
 }
-myGame.prototype.gameover=function(){
-    for(var i=0;i<10;i++){
-        for(var j=0;j<10;j++){
-            if(this._p[i][j]){
-                if(this._p[i][j+1]){if(this._p[i][j]==this._p[i][j+1]){return false;}}
-                if(this._p[i][j-1]){if(this._p[i][j]==this._p[i][j-1]){return false;}}
-                if(this._p[i+1]){if(this._p[i][j]==this._p[i+1][j]){return false;}}
-                if(this._p[i-1]){if(this._p[i][j]==this._p[i-1][j]){return false;}}
-            }
-        }
+myGame.prototype.getCenter = function(touch) { //获取circle的中心点坐标
+    var X = touch.pageX;
+    var Y = touch.pageY;
+    var nowAdays = document.elementFromPoint(X, Y);
+    var key = $('.svg rect').index($(nowAdays));
+    if (nowAdays.nodeName == 'rect') {
+        return [key % 10, Math.floor(key / 10)];
+    } else {
+        return false;
     }
-    return true;
 }
-myGame.prototype.handleP = function() {
-    if(this.obj.length==1){
-        this._p[this.obj[0].i][this.obj[0].j]=this.obj[0].str;
-        this.obj=[];
-    }else{
-    this.obj.sort(function(a, b) {
-        return a.i - b.i;
-    });
-    for (var n = 0; n < this.obj.length; n++) {
-        for (var number = this.obj[n].i; number >= 0; number--) {
-            if (number == 0) {} else {
-                if (this._p[number - 1][this.obj[n].j]) {
-                    this._p[number][this.obj[n].j] = this._p[number - 1][this.obj[n].j];
-                    this._p[number - 1][this.obj[n].j] = 0;
+myGame.prototype.checkIfOver = function() { //检查游戏是否结束
+    var sum = 0;
+    for (var i = 0; i < 10; i++) {
+        for (var j = 0; j < 10; j++) {
+            if (this._p[i][j].color) {
+                sum++;
+                if (this._p[i][j + 1]) {
+                    if (this._p[i][j].color == this._p[i][j + 1].color) {
+                        return false;
+                    }
+                }
+                if (this._p[i + 1]) {
+                    if (this._p[i][j].color == this._p[i + 1][j].color) {
+                        return false;
+                    }
                 }
             }
         }
     }
-    for (var n = 0; n < 10-this.dismiss; n++) {
-    if (this._p[9][n] == 0) {
-            this.alldisplay.push(n);    
-        }
-    }
-    this.alldisplay.sort(function(a, b) {
-        return b - a;
-    });
-    for (var j = 0; j < this.alldisplay.length; j++) {
-        for (n = this.alldisplay[j]; n < 10; n++) {
-            for (var m = 0; m < 10; m++) {
-                this._p[m][n] = this._p[m][n + 1];
-                this._p[m][n + 1] = 0;
+    return sum;
+}
+myGame.prototype.handleP = function() { //处理矩阵，把空方块往右上移动
+    if (this.obj.length == 1) { //如果消除的是一个，则不允许消除
+        this._p[this.obj[0].i][this.obj[0].j].color = this.obj[0].str;
+        this._p[this.obj[0].i][this.obj[0].j].move = false;
+        this.obj = [];
+    } else {
+        this.obj.sort(function(a, b) {
+            return a.i - b.i;
+        });
+        for (var n = 0; n < this.obj.length; n++) {
+            for (var number = this.obj[n].i; number >= 0; number--) { //把0方块往上推
+                if (number == 0) {} else {
+                    if (this._p[number - 1][this.obj[n].j]) {
+                        if (this._p[number - 1][this.obj[n].j].color) {
+                            this._p[number][this.obj[n].j].color = this._p[number - 1][this.obj[n].j].color;
+                            this._p[number][this.obj[n].j].move = true;
+                            this._p[number][this.obj[n].j].moveX = this._p[number - 1][this.obj[n].j].moveX + 1;
+                            this._p[number - 1][this.obj[n].j].color = 0;
+                            this._p[number - 1][this.obj[n].j].move = false;
+                        }
+                    }
+                }
             }
         }
-            this.dismiss++;    
-    }
-    this.createText(this.calcu(this.obj.length),1000);
-    this.repaintP(this.numbers);
-    this.rest+=this.obj.length;
-    if(this.gameover()){
-        if(localStorage.mosthigh){
-            if(localStorage.mosthigh>=this.score){
-                this.createText('真可惜，差一点就破纪录了',5000);
-            }else{
-                localStorage.mosthigh=this.score;
-                this.createText('游戏结束，新纪录！',5000);
+        for (var n = 0; n < 10 - this.dismiss; n++) { //如果有空列，就push，每消除一列，就少监测一列，10-this.dismiss
+            if (this._p[9][n].color == 0) {
+                this.alldisplay.push(n);
             }
-        }else{localStorage.mosthigh=this.score;this.createText('游戏技术，新纪录！',5000);}
-    }
-    // for (var i = 0; i <= 9; i++) {
-    //     console.log(this._p[i][0] + ' ' + this._p[i][1] + ' ' + this._p[i][2] + ' ' + this._p[i][3] + ' ' + this._p[i][4] + ' ' + this._p[i][5] + ' ' +
-    //         this._p[i][6] + ' ' + this._p[i][7] + ' ' + this._p[i][8] + ' ' + this._p[i][9])
-    // }
+        }
+        this.alldisplay.sort(function(a, b) {
+            return b - a;
+        });
+        for (var j = 0; j < this.alldisplay.length; j++) { //把空列往右边推
+            for (n = this.alldisplay[j]; n < 10; n++) {
+                for (var m = 0; m < 10; m++) {
+                    if (this._p[m][n + 1]) {
+                        this._p[m][n].color = this._p[m][n + 1].color;
+                        this._p[m][n].move = true;
+                        this._p[m][n].moveY = this._p[m][n + 1].moveY + 1;
+                        this._p[m][n].moveX = this._p[m][n + 1].moveX;
+                        this._p[m][n + 1].color = 0;
+                        this._p[m][n + 1].move = false;
+                    }
+                }
+            }
+            this.dismiss++; //推完dismiss++
+        }
+        this.createText(this.calcu(this.obj.length), 1000);
+
+        // for (var i = 0; i <= 9; i++) {
+        //     console.log(this._p[i][0].color + ' ' + this._p[i][1].color + ' ' + this._p[i][2].color + ' ' + this._p[i][3].color + ' ' + this._p[i][4].color + ' ' + this._p[i][5].color + ' ' +
+        //         this._p[i][6].color + ' ' + this._p[i][7].color + ' ' + this._p[i][8].color + ' ' + this._p[i][9].color)
+        // }
     }
 }
-myGame.prototype.calcu=function(length){
-    var num=Math.pow(length,3)*2+10;
-    this.score+=num;
-    $('p:eq(1)').html('当前分数:'+this.score+'分');
-    if(num>=400){return '+'+num+'!!!'}
-        else{
-    return '+'+num;}
+myGame.prototype.touchending = function() {
+    var gameRest = this.checkIfOver();
+    if (gameRest) { //如果最后剩余十个以内，奖励分
+        var str = '';
+        var str2 = '';
+        if (gameRest < 10) {
+            this.score += (10 - gameRest) * 300;
+            $('p:eq(1)').html('当前分数:' + this.score + '分');
+            str2 = '+' + (10 - gameRest) * 300 + ',';
+        }
+        if (localStorage.mosthigh) {
+            if (localStorage.mosthigh >= this.score) {
+                this.createText(str2 + '真可惜,差点就破纪录了', 15000);
+            } else {
+                localStorage.mosthigh = this.score;
+                this.createText(str2 + '游戏结束,新纪录！', 15000);
+            }
+        } else {
+            localStorage.mosthigh = this.score;
+            this.createText(str2 + '游戏结束,新纪录！', 15000);
+        }
+        $('.svg').off("touchstart");
+        $('p:eq(1)').html('当前分数:' + this.score + '分');
+    }
+
 }
-var myGame1 = new myGame();
-myGame1.init();
+myGame.prototype.calcu = function(length) {
+    var num;
+    switch (length) {
+        case length >= 20:
+            num = 113;
+            break;
+        case length >= 16:
+            num = 101;
+            break;
+        case length >= 12:
+            num = 89;
+            break;
+        case length >= 8:
+            num = 78;
+            break;
+        case length >= 4:
+            num = 67;
+            break;
+        default:
+            num = 43;
+            break;
+    }
+    num *= length;
+    this.score += num;
+            console.log(num);
+    $('p:eq(1)').html('当前分数:' + this.score + '分');
+    if (num >= 300) {
+        return '+' + num + '!!!';
+    } else {
+        return '+' + num;
+    }
+}
+    window.myLock = function() {
+        this._arr = [];          //存放解锁顺序
+        this._polylineArr = [];  //存放折线坐标
+        this._repeat = {};       //检查重复
+        this._numOfEnd = 1;
+    };
+    myLock.prototype.createElements = function() {
+        var $div = $(`
+        <div style="width:100%;" id="mydiv">
+        <svg  style="width:100%;" class="svg" viewBox="0 0 0 0" />
+            <p><input type="radio" name="radio1" value='unlock'/>解锁密码</p>
+            <p><input type="radio" name="radio1" checked value='set'/>设置密码</p>`);
+        $('body').append($div);
+        this.createLine();
+        var str = $(".svg").html();
+        var winWidth = $("html").width();
+        $(".svg").height(winWidth);
+        var winHeight = $("html").height();
+        var num = 1;
+        for (var flag = 0, i = winWidth / 6; flag < 3; flag++) {
+            for (var j = 60; j <= winHeight + 1; j += winHeight / 3) {
+                str = str.concat(`<circle fill='#504646' id="C${num++}" cx="${i}" cy="${j}" r="17" />`)
+            }
+            i += winWidth / 3;
+        }
+        $(".svg").html(str);
+        this.bindEvens();
+        this.settings(winWidth, winHeight);
+    }
+    myLock.prototype.settings = function(winWidth, winHeight) { //界面元素的一些设置
+        document.getElementsByClassName('svg')[0].setAttribute('viewBox', `0 0 ${winWidth} ${winHeight}`);
+        $('p:eq(1)').css('top', $('svg').height() + 25 + 'px');
+        $('p:eq(0)').css('top', $('svg').height() + 70 + 'px');
+    }
+    myLock.prototype.createLine = function() {                  //创建一条折线
+        var node = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        $(node).attr('id', 'polyline');
+        $(node).attr('points', '');
+        $(node).attr('fill', 'none');
+        $(node).attr('stroke', '#504646');
+        $(node).attr('stroke-width', '6');
+        $(node).appendTo("svg");
+    }
+    myLock.prototype.getCenter = function(x, y) {               //获取circle的中心点坐标
+        var nowAdays = document.elementFromPoint(x, y);
+        var array = [];
+        array.push($('#' + nowAdays.id).attr("cx"));
+        array.push($('#' + nowAdays.id).attr("cy"));
+        return array;
+    }
+    myLock.prototype.createText = function(str) {               //创建文字区域
+        var $p = `<strong class=${str}>${str}</strong>`;
+        $('#mydiv').append($p);
+        setTimeout(function() {
+            $('.' + str).remove();
+        }, 1000);
+    }
+    myLock.prototype.reset = function() {                       //touchend之后重置
+        $('.svg>circle').css('fill', '#504646');
+        $('.svg>circle').attr('class', '');
+        $('.svg>circle').attr('stroke', 'none');
+        this._repeat = {};
+        this._arr = [];
+        this._polylineArr = [];
+        $('#polyline').attr('points', '0,0 0,0');
+        $('#polyline').css('stroke', "#504646");
+    }
+    myLock.prototype.touched = function(target) {
+        var X = Number(target.pageX); 
+        var Y = Number(target.pageY); 
+        nowAdays = document.elementFromPoint(X, Y);
+        $(nowAdays).attr('class', 'turnBig');                   //圆圈触碰特效
+        $(nowAdays).attr('stroke', '#4D94F4');
+        $(nowAdays).attr('stroke-width', '2');
+        this._polylineArr.push(this.getCenter(X, Y).join(','));  //折线的路径可以直接作为密码
+        this._repeat[nowAdays.id] = 'in';
+        this._arr.push(nowAdays.id);                             //把顺序存入，作为密码
+    }
+    myLock.prototype.changeColor = function(bool) {             //改变颜色
+        var id;
+        if (bool) {                                             //bool==1绿色
+            for (id in this._arr) {
+                $('#' + this._arr[id]).css('fill', "#21A421");
+                $('#polyline').css('stroke', "#21A421");
+            }
+        } else {
+            for (id in this._arr) {
+                $('#' + this._arr[id]).css('fill', "#D81D1D");
+                $('#polyline').css('stroke', "#D81D1D");
+            }
+        }
+    }
 
-// var arrr = [
-//     [0, 1],
-//     [0, 2]
-// ];
+    myLock.prototype.bindEvens = function() {
+        var that = this;
+        var timerClear;
+        $('.svg>circle').on('touchstart', function(event) {
+            clearTimeout(timerClear);
+            that.reset();
+            var e = e || event;
+            e.preventDefault();
+            that.touched(e.originalEvent.targetTouches[0]);
 
-// console.log(arrr.filter(function(num){
-//     return num[0]==0;
-// }));
+            $('.svg').on('touchmove', function(event) {
+                var e = e || event;
+                e.preventDefault();
+                var touch = e.originalEvent.targetTouches[0];
+                var X = Number(touch.pageX);
+                var Y = Number(touch.pageY);
+                nowAdays = document.elementFromPoint(X, Y);
+                if (nowAdays.nodeName == 'circle') {                       //如果碰到圆圈，就开始操作线
+                    if (!that._repeat[nowAdays.id]) {
+                        that.touched(e.originalEvent.targetTouches[0]);
+                    } else {}
+                };
+                $('#polyline').attr('points', that._polylineArr.concat([X + ',' + Y]).join(' ')); //不断更新折线
+            })
+            $('.svg').on('touchend', function(event) {
+                var e = e || event;
+                $('.svg').unbind('touchmove');
+                $('#polyline').attr('points', that._polylineArr.join(' '));
+                var type = $('input[type=radio]:checked').val();
+                if (type == 'set') {
+                    if (that._numOfEnd == 1) {                              //是第一次ending并密码长度大于等于4
+                        if (that._arr.length >= 5) {
+                            localStorage.tempcode = that._arr.join('');
+                            that.createText('请再次输入手势密码');
+                            that.changeColor(1);
+                            that._numOfEnd = 2;                              //成功进入第二次ending状态
+                        } else {
+                            that.createText('密码太短，至少需要5个点');
+                            that.changeColor(0);
+                        }
+                    } else {
+                        if (that._arr.length >= 5) {
+                            if (localStorage.tempcode == that._arr.join('')) {
+                                localStorage.realcode = localStorage.tempcode;
+                                that._numOfEnd = 1;
+                                that.createText('密码设置成功');
+                                that.changeColor(1);
+                            } else {
+                                that.createText('两次输入不一致');
+                                that.changeColor(0);
+                                that._numOfEnd = 1;
+                            }
+                        } else { 
+                            that.createText('密码太短，至少需要5个点');
+                            that.changeColor(0);
+                            that._numOfEnd = 1;
+                        }
+                    }
+                } else {
+                    if (!localStorage.realcode) {
+                        that.createText('请先设置密码');
+                        that.changeColor(0);
+                    } else {
+                        if (that._arr.length >= 5) {
+                            if (localStorage.realcode == that._arr.join('')) {
+                                that.createText('密码正确！');
+                                that.changeColor(1);
+                            } else {
+                                that.createText('输入的密码不正确');
+                                that.changeColor(0);
+                            }
+                        } else {
+                            that.createText('输入的密码不正确');
+                            that.changeColor(0);
+                        }
+                    }
+                }
+                $('.svg').unbind('touchend');
+                timerClear = setTimeout(function() {
+                    that.reset();
+                }, 1000);
+            })
+        })
+    }
+    var myLocking = new myLock();
+    myLocking.createElements();
+    setInterval(function() {
+        $('.textWarn').remove();
+        if (window.innerWidth > window.innerHeight) {
+            var node = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            $(node).attr('x', '150');
+            $(node).attr('y', '200');
+            $(node).attr('class', 'textWarn');
+            $(node).html('请您竖屏浏览');
+            $(node).appendTo("svg");
+        }
+    }, 2000);
+})
 </script>
 
 </html>
